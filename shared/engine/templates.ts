@@ -1,4 +1,4 @@
-import type { ModeId } from '../shared/modes'
+import type { ModeId } from '../modes'
 import type { Bucket } from './analysis'
 
 /**

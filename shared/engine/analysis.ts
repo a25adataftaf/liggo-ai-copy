@@ -1,6 +1,6 @@
-import type { LastSpeaker, VibeId } from '../shared/modes'
-import { countEmojis, parseChatLines } from '../shared/chat'
-import { detectTopics, type TopicMeta } from '../shared/topics'
+import type { LastSpeaker, VibeId } from '../modes'
+import { countEmojis, parseChatLines } from '../chat'
+import { detectTopics, type TopicMeta } from '../topics'
 
 export type Bucket = 'hot' | 'fluid' | 'cold' | 'stale'
 export type { TopicMeta }

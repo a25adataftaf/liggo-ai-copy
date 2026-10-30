@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { isModeId, type GenerateRequest } from '../shared/modes'
-import { ProviderError, requestCompletion, type ProviderConfig } from '../shared/provider'
-import { generateDemo } from './engine'
+import { generateResponse, healthPayload } from './handler'
+
+/**
+ * Adaptador HTTP para el middleware de Vite (dev y preview).
+ * La lógica vive en server/handler.ts, compartida con las funciones serverless.
+ */
 
 const MAX_BODY_BYTES = 12 * 1024 * 1024
-const MAX_IMAGES = 4
 
 function json(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status
@@ -13,24 +15,8 @@ function json(res: ServerResponse, status: number, payload: unknown) {
   res.end(JSON.stringify(payload))
 }
 
-function providerConfig(): ProviderConfig | null {
-  const key = process.env.LIGGO_API_KEY || process.env.OPENAI_API_KEY
-  if (!key) return null
-  return {
-    key,
-    baseUrl: process.env.LIGGO_BASE_URL || 'https://api.openai.com/v1',
-    model: process.env.LIGGO_MODEL || 'gpt-4o-mini',
-  }
-}
-
 export function handleHealth(res: ServerResponse) {
-  const provider = providerConfig()
-  json(res, 200, {
-    ok: true,
-    provider: provider ? provider.model : 'demo',
-    ai: Boolean(provider),
-    where: provider ? 'server' : null,
-  })
+  json(res, 200, healthPayload(process.env))
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
@@ -59,34 +45,6 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   })
 }
 
-function normalizeRequest(input: unknown): GenerateRequest {
-  const body = (input ?? {}) as Record<string, unknown>
-  const modes = Array.isArray(body.modes) ? body.modes.filter(isModeId) : []
-  const images = Array.isArray(body.images)
-    ? body.images
-        .filter((i): i is string => typeof i === 'string' && i.startsWith('data:image/'))
-        .slice(0, MAX_IMAGES)
-    : []
-
-  return {
-    chat: typeof body.chat === 'string' ? body.chat.slice(0, 12000) : '',
-    story: typeof body.story === 'string' ? body.story.slice(0, 2000) : '',
-    format: body.format === 'story' ? 'story' : 'chat',
-    modes: modes.slice(0, 3),
-    lastSpeaker: body.lastSpeaker === 'me' ? 'me' : 'match',
-    images,
-    profile:
-      body.profile && typeof body.profile === 'object'
-        ? {
-            alias: String((body.profile as Record<string, unknown>).alias ?? '').slice(0, 40),
-            country: String((body.profile as Record<string, unknown>).country ?? 'es').slice(0, 16),
-            matchName: String((body.profile as Record<string, unknown>).matchName ?? '').slice(0, 40),
-          }
-        : undefined,
-    seed: typeof body.seed === 'number' ? body.seed : undefined,
-  }
-}
-
 export async function handleGenerate(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' })
 
@@ -103,26 +61,6 @@ export async function handleGenerate(req: IncomingMessage, res: ServerResponse) 
     })
   }
 
-  const parsed = normalizeRequest(body)
-  if (!parsed.chat.trim() && !parsed.images?.length && !parsed.story?.trim()) {
-    return json(res, 400, {
-      error: 'Pega el chat, sube una captura o cuéntame la situación para poder ayudarte.',
-    })
-  }
-
-  const config = providerConfig()
-  if (config) {
-    try {
-      const ai = await requestCompletion(config, parsed)
-      return json(res, 200, ai)
-    } catch (error) {
-      const detail =
-        error instanceof ProviderError ? error.message : 'error desconocido al llamar al modelo'
-      const fallback = generateDemo(parsed)
-      fallback.note = `No he podido usar el modelo (${detail}), así que te dejo el motor local.`
-      return json(res, 200, fallback)
-    }
-  }
-
-  return json(res, 200, generateDemo(parsed))
+  const result = await generateResponse(body, process.env)
+  return json(res, result.status, result.body)
 }

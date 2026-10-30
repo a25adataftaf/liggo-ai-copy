@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => {
   loadLiggoEnv(process.cwd(), mode)
 
   return {
+    // En GitHub Pages la app cuelga de /nombre-del-repo/, en Vercel/Netlify de la raíz.
+    base: process.env.VITE_BASE_PATH || '/',
     plugins: [react(), liggoApi()],
     server: {
       host: '0.0.0.0',

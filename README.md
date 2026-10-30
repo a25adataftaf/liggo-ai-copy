@@ -54,6 +54,52 @@ te deja a medias.
 > issues o capturas. Si una clave se ha compartido, rótala en el panel del proveedor. El formato de
 > OpenAI empieza por `sk-`; si tu clave es de otro proveedor, ajusta la base URL y el modelo.
 
+## Publicarla en la web
+
+La app se despliega tal cual: el motor demo se ejecuta **en el navegador**, así que funciona incluso
+en hosting estático; si hay funciones serverless con clave, además usa la IA de verdad.
+
+### GitHub Pages (automático, ya configurado)
+
+Cada push a `main` ejecuta `.github/workflows/deploy-pages.yml` y publica la web en:
+
+```
+https://<tu-usuario>.github.io/liggo-ai-copy/
+```
+
+No necesita configuración extra: el workflow compila con `VITE_BASE_PATH=/liggo-ai-copy/`, copia
+`index.html` a `404.html` y sube el artefacto. En Pages **no hay backend**, así que la app responde
+con el motor local; si quieres IA real ahí, conecta tu clave desde *Perfil → Motor de IA* (va directa
+del navegador al proveedor).
+
+### Vercel (recomendado para IA en servidor)
+
+Importa el repo en Vercel: detecta Vite, usa `api/generate.ts` y `api/health.ts` como funciones
+serverless y sirve `dist/`. Añade en *Settings → Environment Variables*:
+
+```
+LIGGO_API_KEY=tu_clave
+LIGGO_BASE_URL=https://api.openai.com/v1
+LIGGO_MODEL=gpt-4o-mini
+```
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/a25adataftaf/liggo-ai-copy)
+
+### Netlify
+
+`netlify.toml` ya define build (`npm run build`), publish (`dist`), funciones
+(`netlify/functions`) y el redirect `/api/*`. Solo hay que importar el repo y poner las mismas
+variables de entorno.
+
+### Cualquier hosting estático
+
+```bash
+npm run build      # genera dist/
+```
+
+Sube `dist/` a donde quieras (S3, Cloudflare Pages, un VPS…). La app funciona igual: usa el motor
+local del navegador y, si defines `VITE_BASE_PATH`, respeta el subdirectorio.
+
 ## Qué hay dentro
 
 ```
@@ -73,11 +119,13 @@ shared/
   storyIdeas.ts            banco de ideas para publicar stories
   chat.ts, topics.ts       parseo de conversaciones y detección de temas
 server/
-  api.ts                   endpoints, validación y fallback al motor local
-  analysis.ts              heurísticas: quién habló último, tema, monosílabo, visto, interés
-  templates.ts             banco de respuestas por modo × contexto + story
-  engine.ts                modo demo determinista (seed para regenerar variantes)
+  handler.ts               núcleo de la API sin framework (lo usan Vite, Vercel y Netlify)
+  api.ts                   adaptador HTTP para el middleware de Vite
+  fallback.ts              respuesta de emergencia con el motor local
+api/                       funciones serverless de Vercel (/api/generate, /api/health)
+netlify/functions/         funciones serverless de Netlify
 shared/
+  engine/                  motor demo: análisis, banco de respuestas y generador
   modes.ts, countries.ts   tipos y metadatos compartidos cliente/servidor
 ```
 

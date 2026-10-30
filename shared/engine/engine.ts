@@ -1,4 +1,4 @@
-import { type GenerateRequest, type GenerateResponse, type ModeId, type Suggestion } from '../shared/modes'
+import { type GenerateRequest, type GenerateResponse, type ModeId, type Suggestion } from '../modes'
 import { analyze, type Bucket } from './analysis'
 import { BANKS, BUCKET_NOTES, PRO_TIPS, STORY_BANK, STORY_NOTE, type Template } from './templates'
 
