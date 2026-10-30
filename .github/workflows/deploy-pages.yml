@@ -18,6 +18,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    outputs:
+      pages: ${{ steps.pages.outcome }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,18 +40,37 @@ jobs:
       - name: Fallback SPA (404 = index)
         run: cp dist/index.html dist/404.html
 
-      - uses: actions/configure-pages@v5
+      # Si Pages todavía no está activado en el repo, no rompemos el CI:
+      # solo avisamos de cómo activarlo (Settings → Pages → Source: GitHub Actions).
+      - id: pages
+        uses: actions/configure-pages@v5
+        continue-on-error: true
         with:
-          # Intenta habilitar Pages (GitHub Actions) si aún no lo está.
           enablement: true
 
+      - name: Aviso si Pages no está activado
+        if: steps.pages.outcome != 'success'
+        run: |
+          echo "::warning::GitHub Pages no está activado en este repositorio. Ve a Settings → Pages → Build and deployment → Source: GitHub Actions y vuelve a ejecutar este workflow."
+          {
+            echo "### ⚠️ Falta activar GitHub Pages"
+            echo ""
+            echo "El build se ha generado bien, pero la web todavía no se puede publicar."
+            echo ""
+            echo "1. Abre **Settings → Pages**."
+            echo "2. En *Build and deployment*, elige **Source: GitHub Actions**."
+            echo "3. Vuelve a lanzar este workflow (Actions → Deploy a GitHub Pages → Run workflow)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outcome == 'success'
         with:
           path: dist
 
   deploy:
     name: Deploy
     needs: build
+    if: needs.build.outputs.pages == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
